@@ -20,6 +20,7 @@ final class Config
             'apiKey' => '',
             'playlistIds' => [],
             'customTitles' => [],
+            'playlistCategories' => [],
             'contactEmail' => '',
             'adminPasswordHash' => null,
             'updatedAt' => null,
@@ -151,6 +152,9 @@ final class Config
         $titles = is_array($data['customTitles']) ? $data['customTitles'] : [];
         unset($titles[$id]);
         $data['customTitles'] = $titles;
+        $categories = is_array($data['playlistCategories']) ? $data['playlistCategories'] : [];
+        unset($categories[$id]);
+        $data['playlistCategories'] = $categories;
         self::save($data);
     }
 
@@ -182,6 +186,37 @@ final class Config
             $titles[$id] = $title;
         }
         $data['customTitles'] = $titles;
+        self::save($data);
+    }
+
+    /** The admin-set category tag for a playlist, or null if uncategorized. */
+    public static function getCategory(string $id): ?string
+    {
+        $categories = self::load()['playlistCategories'];
+        if (!is_array($categories) || empty($categories[$id])) {
+            return null;
+        }
+        return (string) $categories[$id];
+    }
+
+    public static function getPlaylistCategories(): array
+    {
+        $categories = self::load()['playlistCategories'];
+        return is_array($categories) ? $categories : [];
+    }
+
+    /** An empty $category clears it (the playlist becomes uncategorized). */
+    public static function setCategory(string $id, string $category): void
+    {
+        $data = self::load();
+        $categories = is_array($data['playlistCategories']) ? $data['playlistCategories'] : [];
+        $category = trim($category);
+        if ($category === '') {
+            unset($categories[$id]);
+        } else {
+            $categories[$id] = $category;
+        }
+        $data['playlistCategories'] = $categories;
         self::save($data);
     }
 

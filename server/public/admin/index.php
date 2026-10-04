@@ -119,6 +119,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectBack();
     }
 
+    if ($loggedIn && $action === 'update_playlist_category') {
+        $id = (string) ($_POST['id'] ?? '');
+        $category = (string) ($_POST['category'] ?? '');
+        if (in_array($id, Config::getPlaylistIds(), true)) {
+            Config::setCategory($id, $category);
+            redirectBack($category !== '' ? 'カテゴリーを変更しました。' : 'カテゴリーを解除しました。');
+        }
+        redirectBack();
+    }
+
     if ($loggedIn && $action === 'change_password') {
         $current = (string) ($_POST['current_password'] ?? '');
         $new = (string) ($_POST['new_password'] ?? '');
@@ -236,6 +246,15 @@ $config = Config::load();
   .playlist-label .playlist-title { display: block; font-weight: 600; }
   .playlist-label .playlist-id { display: block; color: #808080; font-size: 0.75rem; }
   .playlist-label .playlist-warning { display: block; color: #f0a500; font-size: 0.75rem; }
+  .playlist-label .playlist-category {
+    display: inline-block;
+    margin-top: 0.3rem;
+    background: rgba(229,9,20,0.15);
+    color: #ff6b6b;
+    border-radius: 3px;
+    padding: 0.1rem 0.5rem;
+    font-size: 0.72rem;
+  }
   ul.playlist-list form.playlist-title-form { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
   .playlist-title-form input[type="text"] {
     flex: 1;
@@ -351,11 +370,13 @@ $config = Config::load();
         <?php if (empty($config['playlistIds'])): ?>
           <li>まだ再生リストがありません。</li>
         <?php endif; ?>
+        <?php $existingCategories = array_values(array_unique(array_filter(Config::getPlaylistCategories()))); ?>
         <?php foreach ($config['playlistIds'] as $id): ?>
           <?php
             $realTitle = YouTubeClient::fetchPlaylistTitle($id);
             $customTitle = Config::getCustomTitle($id);
             $displayTitle = $customTitle ?? $realTitle;
+            $category = Config::getCategory($id);
           ?>
           <li data-id="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>">
             <span class="drag-handle" draggable="true" aria-label="ドラッグして並び替え">⠿</span>
@@ -370,6 +391,9 @@ $config = Config::load();
                 <span class="playlist-title"><?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?></span>
                 <span class="playlist-warning">タイトルを取得できませんでした(APIキーや再生リストIDを確認してください)</span>
               <?php endif; ?>
+              <?php if ($category !== null): ?>
+                <span class="playlist-category">カテゴリー: <?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?></span>
+              <?php endif; ?>
               <form method="post" class="playlist-title-form">
                 <input type="hidden" name="action" value="update_playlist_title" />
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" />
@@ -379,6 +403,19 @@ $config = Config::load();
                   name="title"
                   value="<?= htmlspecialchars((string) $customTitle, ENT_QUOTES, 'UTF-8') ?>"
                   placeholder="サイトに表示する名前(空欄で自動取得タイトルを使用)"
+                />
+                <button type="submit" class="secondary">変更</button>
+              </form>
+              <form method="post" class="playlist-title-form">
+                <input type="hidden" name="action" value="update_playlist_category" />
+                <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" />
+                <input type="hidden" name="id" value="<?= htmlspecialchars($id, ENT_QUOTES, 'UTF-8') ?>" />
+                <input
+                  type="text"
+                  name="category"
+                  list="category-options"
+                  value="<?= htmlspecialchars((string) $category, ENT_QUOTES, 'UTF-8') ?>"
+                  placeholder="カテゴリー(空欄で未分類)"
                 />
                 <button type="submit" class="secondary">変更</button>
               </form>
@@ -392,6 +429,11 @@ $config = Config::load();
           </li>
         <?php endforeach; ?>
       </ul>
+      <datalist id="category-options">
+        <?php foreach ($existingCategories as $cat): ?>
+          <option value="<?= htmlspecialchars($cat, ENT_QUOTES, 'UTF-8') ?>"></option>
+        <?php endforeach; ?>
+      </datalist>
       <form method="post" id="reorder-form" style="display:none;">
         <input type="hidden" name="action" value="reorder_playlists" />
         <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" />

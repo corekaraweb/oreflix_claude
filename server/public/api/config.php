@@ -8,5 +8,6 @@ header('Content-Type: application/json; charset=utf-8');
 
 echo json_encode([
     'playlistIds' => Config::getPlaylistIds(),
+    'categories' => Config::getPlaylistCategories(),
     'contactEmail' => Config::getContactEmail(),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

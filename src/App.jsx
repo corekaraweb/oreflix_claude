@@ -14,6 +14,7 @@ const HERO_ROTATE_MS = 9000
 
 function App() {
   const [playlistIds, setPlaylistIds] = useState([])
+  const [categories, setCategories] = useState({})
   const [configStatus, setConfigStatus] = useState('loading')
   const [selectedVideo, setSelectedVideo] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -33,6 +34,7 @@ function App() {
       .then((data) => {
         if (cancelled) return
         setPlaylistIds(Array.isArray(data.playlistIds) ? data.playlistIds : [])
+        setCategories(data.categories && typeof data.categories === 'object' ? data.categories : {})
         setConfigStatus('ready')
       })
       .catch(() => {
@@ -57,7 +59,28 @@ function App() {
     error: playlistsState[id]?.error,
     meta: playlistsState[id]?.meta,
     videos: playlistsState[id]?.videos || [],
+    category: categories[id] || null,
   }))
+
+  // Group playlists by their admin-assigned category, preserving the order
+  // categories first appear in. Uncategorized playlists share a null-keyed
+  // group. If nobody has used categories, this collapses to a single group
+  // so the homepage renders exactly as it did before the feature existed.
+  const groupedPlaylists = (() => {
+    const order = []
+    const buckets = new Map()
+    orderedPlaylists.forEach((p) => {
+      const key = p.category
+      if (!buckets.has(key)) {
+        buckets.set(key, [])
+        order.push(key)
+      }
+      buckets.get(key).push(p)
+    })
+    return order.map((key) => ({ category: key, playlists: buckets.get(key) }))
+  })()
+
+  const hasCategories = groupedPlaylists.some((g) => g.category !== null)
 
   const heroPool = useMemo(
     () =>
@@ -139,18 +162,38 @@ function App() {
         <>
           <Hero video={heroVideo} onPlay={handleSelectVideo} />
           <main className="rows">
-            {orderedPlaylists.map((p) => (
-              <Row
-                key={p.id}
-                title={p.meta?.title || '読み込み中…'}
-                channelTitle={p.meta?.channelTitle}
-                status={p.status}
-                error={p.error}
-                videos={p.videos}
-                onSelect={handleSelectVideo}
-                onRetry={() => retry(p.id)}
-              />
-            ))}
+            {hasCategories
+              ? groupedPlaylists.map((group) => (
+                  <section key={group.category ?? '__uncategorized__'} className="category-group">
+                    <h2 className="category-heading">{group.category ?? 'その他'}</h2>
+                    <div className="category-rows">
+                      {group.playlists.map((p) => (
+                        <Row
+                          key={p.id}
+                          title={p.meta?.title || '読み込み中…'}
+                          channelTitle={p.meta?.channelTitle}
+                          status={p.status}
+                          error={p.error}
+                          videos={p.videos}
+                          onSelect={handleSelectVideo}
+                          onRetry={() => retry(p.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              : orderedPlaylists.map((p) => (
+                  <Row
+                    key={p.id}
+                    title={p.meta?.title || '読み込み中…'}
+                    channelTitle={p.meta?.channelTitle}
+                    status={p.status}
+                    error={p.error}
+                    videos={p.videos}
+                    onSelect={handleSelectVideo}
+                    onRetry={() => retry(p.id)}
+                  />
+                ))}
           </main>
         </>
       )}
