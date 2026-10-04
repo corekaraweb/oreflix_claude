@@ -1,0 +1,63 @@
+:root {
+  --bg: #141414;
+  --bg-elevated: #1f1f1f;
+  --text: #ffffff;
+  --text-dim: #b3b3b3;
+  --accent: #e50914;
+  --accent-hover: #f6121d;
+  --border: rgba(255, 255, 255, 0.12);
+
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font: 16px/1.5 'Helvetica Neue', Helvetica, Arial, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}

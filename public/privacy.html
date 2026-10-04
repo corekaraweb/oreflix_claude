@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>プライバシーポリシー | OREFLIX</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #141414;
+    color: #fff;
+    font: 16px/1.7 'Helvetica Neue', Helvetica, Arial, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    padding: 3rem 1.25rem;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { color: #e50914; font-size: 1.8rem; margin: 0 0 1.5rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 0.75rem; }
+  p, li { color: #d2d2d2; }
+  a { color: #fff; }
+  ul { padding-left: 1.25rem; }
+  .back { display: inline-block; margin-top: 2.5rem; color: #b3b3b3; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>プライバシーポリシー</h1>
+  <p>
+    本サイト(OREFLIX、以下「本サービス」)は、YouTubeの再生リストをNetflix風の画面で閲覧できる個人運営のWebサイトです。
+    本サービスはYouTube API サービスを利用しています。
+  </p>
+
+  <h2>YouTube API サービスの利用について</h2>
+  <p>
+    本サービスの動画情報の取得・再生には、YouTube API サービスを使用しています。
+    本サービスを利用することにより、以下の規約・ポリシーに同意したものとみなされます。
+  </p>
+  <ul>
+    <li><a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube利用規約</a></li>
+    <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Googleプライバシーポリシー</a></li>
+    <li><a href="/terms.html">当サイトの利用規約</a></li>
+  </ul>
+  <p>
+    動画は初回アクセス時にご案内する同意画面で「同意する」を選択いただくまで再生されません。同意いただくまでは、YouTubeが提供するサムネイル画像のみを表示します。
+  </p>
+
+  <h2>本サービスが取得する情報</h2>
+  <p>
+    本サービス自体は、会員登録機能を持たず、氏名・メールアドレスなどの個人情報を収集しません。
+    ただし、動画再生時にはYouTubeの埋め込みプレーヤーを使用しており、その際にGoogle/YouTubeが独自にCookie等を通じて情報を取得する場合があります。これらの取り扱いは前述のGoogleプライバシーポリシーに従います。
+  </p>
+
+  <h2>端末への情報保存(ローカルストレージ)について</h2>
+  <p>
+    本サービスは、上記の同意画面で「同意する」を押したことを記憶するために、お使いのブラウザのローカルストレージ(<code>localStorage</code>)に同意済みであることを示す情報を1件保存します。
+    この情報は外部に送信されることはなく、ブラウザのサイトデータを削除すると消去されます。
+  </p>
+
+  <h2>アクセス解析等について</h2>
+  <p>
+    本サービスでは、サーバーの標準的なアクセスログ(アクセス日時・IPアドレス等)を、不正利用防止(ログイン試行制限など)の目的で一時的に保持することがあります。第三者に提供することはありません。
+  </p>
+
+  <h2 id="contact-heading" hidden>お問い合わせ</h2>
+  <p id="contact-intro" hidden>本サービスに関するお問い合わせは、以下までご連絡ください。</p>
+  <p id="contact-email"></p>
+
+  <a class="back" href="/">トップページに戻る</a>
+</main>
+<script>
+  fetch('/api/config.php')
+    .then((res) => res.json())
+    .then((data) => {
+      const email = data && typeof data.contactEmail === 'string' ? data.contactEmail.trim() : ''
+      if (!email) return
+      const link = document.createElement('a')
+      link.href = 'mailto:' + email
+      link.textContent = email
+      document.getElementById('contact-email').appendChild(link)
+      document.getElementById('contact-heading').hidden = false
+      document.getElementById('contact-intro').hidden = false
+    })
+    .catch(() => {
+      // No backend reachable (e.g. static preview) — just omit the contact section.
+    })
+</script>
+</body>
+</html>
