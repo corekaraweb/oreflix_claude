@@ -249,6 +249,8 @@ $config = Config::load();
   ul.playlist-list button { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
   .top-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; }
   .top-bar a { color: #b3b3b3; font-size: 0.85rem; }
+  .top-bar nav { display: flex; gap: 1.25rem; }
+  .back-link { display: inline-block; margin-top: 1.5rem; color: #b3b3b3; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -278,6 +280,7 @@ $config = Config::load();
         <button type="submit">設定する</button>
       </form>
     </section>
+    <a class="back-link" href="/">トップページに戻る</a>
 
   <?php elseif (!$loggedIn): ?>
     <h1>OREFLIX 管理画面</h1>
@@ -291,11 +294,15 @@ $config = Config::load();
         <button type="submit">ログイン</button>
       </form>
     </section>
+    <a class="back-link" href="/">トップページに戻る</a>
 
   <?php else: ?>
     <div class="top-bar">
       <h1>OREFLIX 管理画面</h1>
-      <a href="logout.php">ログアウト</a>
+      <nav>
+        <a href="/">トップページに戻る</a>
+        <a href="logout.php">ログアウト</a>
+      </nav>
     </div>
 
     <section>
