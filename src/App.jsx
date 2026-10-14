@@ -15,6 +15,7 @@ const HERO_ROTATE_MS = 9000
 function App() {
   const [playlistIds, setPlaylistIds] = useState([])
   const [categories, setCategories] = useState({})
+  const [categoryOrder, setCategoryOrder] = useState([])
   const [configStatus, setConfigStatus] = useState('loading')
   const [selectedVideo, setSelectedVideo] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -35,6 +36,7 @@ function App() {
         if (cancelled) return
         setPlaylistIds(Array.isArray(data.playlistIds) ? data.playlistIds : [])
         setCategories(data.categories && typeof data.categories === 'object' ? data.categories : {})
+        setCategoryOrder(Array.isArray(data.categoryOrder) ? data.categoryOrder : [])
         setConfigStatus('ready')
       })
       .catch(() => {
@@ -62,21 +64,20 @@ function App() {
     category: categories[id] || null,
   }))
 
-  // Group playlists by their admin-assigned category, preserving the order
-  // categories first appear in. Uncategorized playlists share a null-keyed
-  // group. If nobody has used categories, this collapses to a single group
-  // so the homepage renders exactly as it did before the feature existed.
+  // Group playlists by their admin-assigned category, in the admin's chosen
+  // category order (see /admin/ "カテゴリーの並び順"). Uncategorized
+  // playlists always sort last, under "その他". If nobody has used
+  // categories, this collapses to a single group so the homepage renders
+  // exactly as it did before the feature existed.
   const groupedPlaylists = (() => {
-    const order = []
     const buckets = new Map()
     orderedPlaylists.forEach((p) => {
       const key = p.category
-      if (!buckets.has(key)) {
-        buckets.set(key, [])
-        order.push(key)
-      }
+      if (!buckets.has(key)) buckets.set(key, [])
       buckets.get(key).push(p)
     })
+    const order = categoryOrder.filter((cat) => buckets.has(cat))
+    if (buckets.has(null)) order.push(null)
     return order.map((key) => ({ category: key, playlists: buckets.get(key) }))
   })()
 

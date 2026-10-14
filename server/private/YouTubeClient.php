@@ -99,6 +99,22 @@ final class YouTubeClient
         return ['status' => $status, 'body' => $decoded];
     }
 
+    /** Deletes all cached YouTube API responses. Returns the number of files removed. */
+    public static function clearCache(): int
+    {
+        $cacheDir = __DIR__ . '/cache/youtube';
+        if (!is_dir($cacheDir)) {
+            return 0;
+        }
+        $count = 0;
+        foreach (glob($cacheDir . '/*.json') ?: [] as $file) {
+            if (@unlink($file)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
     /** Convenience for the admin panel: the playlist's title, or null on any failure. */
     public static function fetchPlaylistTitle(string $playlistId): ?string
     {

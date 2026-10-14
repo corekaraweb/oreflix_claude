@@ -21,6 +21,7 @@ final class Config
             'playlistIds' => [],
             'customTitles' => [],
             'playlistCategories' => [],
+            'categoryOrder' => [],
             'contactEmail' => '',
             'adminPasswordHash' => null,
             'updatedAt' => null,
@@ -217,6 +218,45 @@ final class Config
             $categories[$id] = $category;
         }
         $data['playlistCategories'] = $categories;
+        self::save($data);
+    }
+
+    /**
+     * Distinct categories currently used by at least one playlist, in the
+     * admin's chosen display order. New categories (not yet in the stored
+     * order) are appended automatically; categories no longer used by any
+     * playlist are simply skipped (their stored position is kept in case
+     * the same name is used again later).
+     */
+    public static function getOrderedCategories(): array
+    {
+        $data = self::load();
+        $categoryMap = is_array($data['playlistCategories']) ? $data['playlistCategories'] : [];
+        $used = array_values(array_unique(array_filter($categoryMap)));
+        $order = is_array($data['categoryOrder']) ? $data['categoryOrder'] : [];
+
+        $ordered = [];
+        foreach ($order as $cat) {
+            if (in_array($cat, $used, true) && !in_array($cat, $ordered, true)) {
+                $ordered[] = $cat;
+            }
+        }
+        foreach ($used as $cat) {
+            if (!in_array($cat, $ordered, true)) {
+                $ordered[] = $cat;
+            }
+        }
+        return $ordered;
+    }
+
+    /** Reorders categories per the admin's drag-and-drop. */
+    public static function reorderCategories(array $orderedCategories): void
+    {
+        $data = self::load();
+        $data['categoryOrder'] = array_values(array_unique(array_filter(
+            $orderedCategories,
+            static fn ($c) => $c !== '',
+        )));
         self::save($data);
     }
 

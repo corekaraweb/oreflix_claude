@@ -81,6 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirectBack();
     }
 
+    if ($loggedIn && $action === 'clear_cache') {
+        $count = YouTubeClient::clearCache();
+        redirectBack("キャッシュを削除しました({$count}件)。");
+    }
+
     if ($loggedIn && $action === 'update_contact_email') {
         $email = trim((string) ($_POST['contact_email'] ?? ''));
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -107,6 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderedIds = array_values(array_filter(explode(',', $orderRaw), static fn ($v) => $v !== ''));
         Config::reorderPlaylists($orderedIds);
         redirectBack('並び順を保存しました。');
+    }
+
+    if ($loggedIn && $action === 'reorder_categories') {
+        $orderRaw = (string) ($_POST['order'] ?? '');
+        $orderedCategories = array_values(array_filter(explode(',', $orderRaw), static fn ($v) => $v !== ''));
+        Config::reorderCategories($orderedCategories);
+        redirectBack('カテゴリーの並び順を保存しました。');
     }
 
     if ($loggedIn && $action === 'update_playlist_title') {
@@ -338,6 +350,22 @@ $config = Config::load();
       </form>
     </section>
 
+    <?php $cachedFileCount = count(glob(PRIVATE_DIR . '/cache/youtube/*.json') ?: []); ?>
+    <section>
+      <h2>キャッシュ</h2>
+      <p class="hint">
+        動画一覧・タイトル・サムネイルなどの情報は、サーバー側で一定時間キャッシュされます
+        (再生リスト情報: 1時間、動画一覧: 10分、動画詳細: 30分)。
+        YouTube側の情報を更新したのにサイトにすぐ反映されない場合は、キャッシュをクリアしてください。
+        現在<?= $cachedFileCount ?>件キャッシュされています。
+      </p>
+      <form method="post">
+        <input type="hidden" name="action" value="clear_cache" />
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" />
+        <button type="submit" class="secondary">キャッシュをクリア</button>
+      </form>
+    </section>
+
     <section>
       <h2>連絡先メールアドレス</h2>
       <p class="hint">
@@ -448,6 +476,27 @@ $config = Config::load();
       </form>
     </section>
 
+    <?php $orderedCategories = Config::getOrderedCategories(); ?>
+    <?php if (count($orderedCategories) > 1): ?>
+    <section>
+      <h2>カテゴリーの並び順</h2>
+      <p class="hint">トップページでのカテゴリー表示順です。「⠿」をドラッグすると変更できます。</p>
+      <ul class="playlist-list" id="category-order-list">
+        <?php foreach ($orderedCategories as $cat): ?>
+          <li data-category="<?= htmlspecialchars($cat, ENT_QUOTES, 'UTF-8') ?>">
+            <span class="drag-handle" draggable="true" aria-label="ドラッグして並び替え">⠿</span>
+            <span class="playlist-label"><?= htmlspecialchars($cat, ENT_QUOTES, 'UTF-8') ?></span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+      <form method="post" id="category-reorder-form" style="display:none;">
+        <input type="hidden" name="action" value="reorder_categories" />
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>" />
+        <input type="hidden" name="order" id="category-order" value="" />
+      </form>
+    </section>
+    <?php endif; ?>
+
     <section>
       <h2>パスワード変更</h2>
       <form method="post">
@@ -465,45 +514,47 @@ $config = Config::load();
   <?php endif; ?>
 </main>
 <script>
-  (function () {
-    var list = document.getElementById('playlist-list');
+  // Generic drag-and-drop reorder: wires up a <ul> of <li data-{attr}="...">
+  // to a hidden form that saves the new order in the background (fetch, no
+  // page reload — a real navigation would jump the scroll back to the top).
+  function setupDragReorder(listId, attr, formId, inputId) {
+    var list = document.getElementById(listId);
     if (!list) return;
-    var dragLi = null;
+    var itemSelector = 'li[data-' + attr + ']';
+    var dragEl = null;
 
     list.addEventListener('dragstart', function (e) {
-      dragLi = e.target.closest('li[data-id]');
-      if (dragLi) {
-        dragLi.classList.add('dragging');
+      dragEl = e.target.closest(itemSelector);
+      if (dragEl) {
+        dragEl.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
       }
     });
 
     list.addEventListener('dragend', function () {
-      if (dragLi) dragLi.classList.remove('dragging');
-      dragLi = null;
+      if (dragEl) dragEl.classList.remove('dragging');
+      dragEl = null;
     });
 
     list.addEventListener('dragover', function (e) {
-      if (!dragLi) return;
+      if (!dragEl) return;
       e.preventDefault();
-      var overLi = e.target.closest('li[data-id]');
-      if (!overLi || overLi === dragLi) return;
-      var rect = overLi.getBoundingClientRect();
+      var overEl = e.target.closest(itemSelector);
+      if (!overEl || overEl === dragEl) return;
+      var rect = overEl.getBoundingClientRect();
       var before = (e.clientY - rect.top) < rect.height / 2;
-      list.insertBefore(dragLi, before ? overLi : overLi.nextSibling);
+      list.insertBefore(dragEl, before ? overEl : overEl.nextSibling);
     });
 
     list.addEventListener('drop', function (e) {
-      if (!dragLi) return;
+      if (!dragEl) return;
       e.preventDefault();
-      var ids = Array.prototype.map.call(
-        list.querySelectorAll('li[data-id]'),
-        function (li) { return li.dataset.id; }
+      var values = Array.prototype.map.call(
+        list.querySelectorAll(itemSelector),
+        function (li) { return li.dataset[attr]; }
       );
-      var form = document.getElementById('reorder-form');
-      document.getElementById('playlist-order').value = ids.join(',');
-      // Save in the background (fetch) instead of form.submit() — a real
-      // navigation would reload the page and jump the scroll to the top.
+      var form = document.getElementById(formId);
+      document.getElementById(inputId).value = values.join(',');
       fetch('index.php', {
         method: 'POST',
         body: new FormData(form),
@@ -513,7 +564,10 @@ $config = Config::load();
         // previous order and the admin can just try dragging again.
       });
     });
-  })();
+  }
+
+  setupDragReorder('playlist-list', 'id', 'reorder-form', 'playlist-order');
+  setupDragReorder('category-order-list', 'category', 'category-reorder-form', 'category-order');
 </script>
 </body>
 </html>
