@@ -9,6 +9,35 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Last-resort fallback: catches failures React itself can never catch
+      // (the bundle failing to parse/load entirely, e.g. a too-new JS syntax
+      // on an old browser). Only kicks in if React never finished its first
+      // mount (see main.jsx) — anything after that is handled by the React
+      // error boundary instead, so a stray error doesn't wipe a working page.
+      (function () {
+        function showFallback(message) {
+          var root = document.getElementById('root')
+          if (!root || root.dataset.mounted) return
+          root.innerHTML =
+            '<div style="padding:2rem;color:#fff;background:#141414;min-height:100vh;' +
+            'font-family:-apple-system,Helvetica,Arial,sans-serif;box-sizing:border-box;">' +
+            '<h1 style="color:#e50914;font-size:1.4rem;">表示中にエラーが発生しました</h1>' +
+            '<p>お手数ですが、下記の内容をスクリーンショットして管理者に送ってください。</p>' +
+            '<pre style="white-space:pre-wrap;word-break:break-all;background:#000;' +
+            'padding:1rem;border-radius:4px;font-size:0.8rem;">' +
+            String(message).replace(/</g, '&lt;') +
+            '</pre></div>'
+        }
+        window.addEventListener('error', function (e) {
+          showFallback((e.message || 'error') + (e.filename ? '\n' + e.filename + ':' + e.lineno + ':' + e.colno : ''))
+        })
+        window.addEventListener('unhandledrejection', function (e) {
+          var reason = e.reason
+          showFallback(reason && reason.stack ? reason.stack : String(reason))
+        })
+      })()
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
