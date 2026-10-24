@@ -19,32 +19,32 @@ npm run lint      # oxlint
 npm run preview   # preview the production build
 ```
 
-No test suite exists in this project. After editing PHP, syntax-check with `php -l <file>` (there's no PHP linter configured). The frontend needs the PHP backend running for `/api/*` and `/admin/*` to resolve locally — `vite.config.js`'s dev proxy forwards those paths to `http://localhost:8080`, so always run `npm run dev:php` (or just `npm run dev:all`) alongside `npm run dev`.
+このプロジェクトにテストスイートは存在しない。PHPを編集した後は `php -l <file>` で構文チェックすること(PHPのLintツールは導入していない)。フロントエンドは、ローカルで `/api/*` や `/admin/*` を解決するためにPHPバックエンドの起動が必要 — `vite.config.js` の開発用プロキシがこれらのパスを `http://localhost:8080` へ転送しているため、`npm run dev` と合わせて必ず `npm run dev:php`(または `npm run dev:all` だけ)を起動すること。
 
-## Architecture
+## アーキテクチャ
 
-OREFLIX is a two-layer app: a React SPA (`src/`) and a small PHP backend (`server/`) that holds the shared site config and proxies all YouTube Data API v3 calls. The split exists because the playlist config must be shared by every visitor (not per-browser) and the YouTube API key must never reach the browser — see `README.md` and `server/README.md` for the full rationale and deployment instructions.
+OREFLIXは2層構成のアプリ: React製SPA(`src/`)と、サイト共通設定を保持しYouTube Data API v3への全呼び出しをプロキシする小さなPHPバックエンド(`server/`)。この分離が必要な理由は、再生リスト設定を(ブラウザ単位ではなく)全訪問者で共有する必要があることと、YouTube APIキーを絶対にブラウザへ渡してはいけないため。詳しい経緯とデプロイ手順は `README.md` と `server/README.md` を参照。
 
-### Frontend (`src/`)
+### フロントエンド(`src/`)
 
-- `App.jsx` is the single stateful orchestrator: fetches `/api/config.php` for the playlist list/categories/contact email, drives `hooks/usePlaylists.js` (per-playlist fetch via `api/youtube.js`), and renders `Hero`/`Row`/`VideoModal`.
-- `api/youtube.js` never calls Google directly — every call goes through `/api/youtube.php`. It exposes `fetchPlaylistMeta`, `fetchPlaylistItemsPage`, `fetchVideosDetails`, plus display-formatting helpers.
-- `usePlaylists.js` loads each playlist independently (meta → paginated items → video details), capped at 200 videos (`MAX_PAGES = 4`), with `AbortController` cancellation when the configured playlist list changes.
-- Playlists are grouped on the homepage by admin-assigned category (`App.jsx`'s `groupedPlaylists`, ordered via the server's `categoryOrder`); with no categories set, it falls back to the original flat row layout so sites that don't use the feature render unchanged.
-- `hooks/useConsent.js` + `components/ConsentBanner.jsx` gate the actual YouTube player — `Hero`/`VideoCard`/`VideoModal` must never mount an iframe before the visitor has consented. This is a YouTube Developer Policies compliance requirement, not just UX; don't make video playback reachable before consent.
-- `components/ErrorBoundary.jsx` plus the inline fallback `<script>` in `index.html` are a deliberate two-layer crash screen: the inline script catches failures React itself can never catch (the bundle failing to parse/load at all), while the React boundary catches render-time errors. `main.jsx` sets `root.dataset.mounted` once React mounts so the inline script stops intercepting after that point.
-- `domPatch.js` (imported first in `main.jsx`, before anything else touches the DOM) patches `Node.prototype.removeChild`/`insertBefore` to no-op instead of throwing when a node was already removed out from under React. This fixed a real production crash: iOS content blockers strip the YouTube `<iframe>`, and React's later cleanup then threw an uncaught `NotFoundError`. Don't remove this without understanding why it's there.
+- `App.jsx` が唯一の状態管理の中心: `/api/config.php` から再生リスト一覧・カテゴリー・連絡先メールアドレスを取得し、`hooks/usePlaylists.js`(`api/youtube.js` 経由で再生リストごとに取得)を駆動し、`Hero`/`Row`/`VideoModal` を描画する。
+- `api/youtube.js` はGoogleに直接アクセスしない — 全ての呼び出しは `/api/youtube.php` を経由する。`fetchPlaylistMeta`、`fetchPlaylistItemsPage`、`fetchVideosDetails` と、表示用のフォーマットヘルパーを公開している。
+- `usePlaylists.js` は各再生リストを独立して読み込む(基本情報 → ページ単位の動画一覧 → 動画詳細の順)。最大200本(`MAX_PAGES = 4`)まで。設定済みの再生リスト一覧が変わった際は `AbortController` でキャンセルする。
+- トップページでは、管理者が割り当てたカテゴリーごとに再生リストをグループ化する(`App.jsx` の `groupedPlaylists`、サーバー側の `categoryOrder` で順序づけ)。カテゴリーが1つも設定されていない場合は、従来のフラットな行レイアウトにフォールバックするため、この機能を使っていないサイトの表示は変わらない。
+- `hooks/useConsent.js` と `components/ConsentBanner.jsx` が実際のYouTubeプレーヤーをゲートしている — `Hero`/`VideoCard`/`VideoModal` は、訪問者が同意するまでiframeを絶対にマウントしてはならない。これは単なるUXではなくYouTube Developer Policiesへの準拠要件であり、同意前に動画再生に到達できる状態にしないこと。
+- `components/ErrorBoundary.jsx` と `index.html` 内のインラインフォールバック `<script>` は、意図的な二段構えのクラッシュ画面: インラインスクリプトは、Reactそのものが決して捕捉できない失敗(バンドルの解析・読み込み自体の失敗)を捕捉し、Reactのエラー境界は描画時のエラーを捕捉する。`main.jsx` はReactがマウントした時点で `root.dataset.mounted` をセットし、それ以降インラインスクリプト側の介入を止める。
+- `domPatch.js`(他の何かがDOMに触れる前に、`main.jsx` の先頭でimportされる)は、Reactの知らないところで既にノードが削除されていた場合、`Node.prototype.removeChild`/`insertBefore` が例外を投げる代わりに何もしないようパッチしている。これは実際の本番クラッシュを修正したもの: iOSのコンテンツブロッカーがYouTubeの `<iframe>` を取り除き、その後のReactのクリーンアップ処理が捕捉されない `NotFoundError` を投げていた。存在理由を理解せずに削除しないこと。
 
-### Backend (`server/`)
+### バックエンド(`server/`)
 
-- `server/private/` must be deployed **outside the web root** — `server/public/bootstrap.php` resolves `PRIVATE_DIR` as `dirname(__DIR__) . '/private'` (a sibling of wherever `server/public/` is deployed). The `.htaccess` in `private/` only protects Apache; the actual production deployment is nginx, where the real protection is a `location ^~ /private/ { deny all; }` block in the server's nginx config (not anything in this repo).
-- `Config.php` is the single source of truth for site config (API key, playlist IDs + order, custom titles, categories + category order, contact email, admin password hash), persisted atomically to `server/private/config.json` (write to a temp file, `chmod 0600`, then `rename()`).
-- `Security.php` provides CSRF tokens, a file-based login lockout (5 attempts / 15 min / IP), and a generic sliding-window rate limiter. Both have a known, accepted TOCTOU race under concurrent requests (the read-modify-write cycle isn't lock-protected end to end) — low severity given bcrypt cost, but worth knowing before relying on them for anything stricter.
-- `YouTubeClient.php` is the only code that ever sends the real API key to Google. It caches every response under `server/private/cache/youtube/` (TTL: playlist 1h, playlistItems 10min, videos 30min) and rate-limits only actual upstream calls — cache hits are always free, since a page with many playlists/categories can legitimately burst past any reasonable per-minute cap on a cold cache otherwise. It also maintains `server/private/cache/known_video_ids.json`, an allowlist of video IDs seen inside an approved playlist's items, which `api/youtube.php`'s `videos` resource checks so it can't become an open YouTube-metadata lookup proxy for arbitrary video IDs.
-- `server/public/api/youtube.php` is the public proxy: validates `resource`/`playlistId`/`id` against the admin's configured playlists (plus the known-video-ID allowlist) before calling `YouTubeClient::request()`. It also rewrites the `playlist` resource's title with the admin's custom override before returning it, so the frontend never needs to know an override happened.
-- `server/public/admin/index.php` is a single self-contained procedural script (setup/login/dashboard, branched by `$setupComplete`/`$loggedIn`) — every mutating action is POST + CSRF-checked, and it sends `X-Frame-Options: DENY` / `frame-ancestors 'none'` against clickjacking. Playlist/category drag-reorder POSTs in the background via `fetch()` rather than `form.submit()`, specifically so a page reload doesn't jump the scroll position back to the top.
-- `server/public/api/config.php` is the only unauthenticated read endpoint — it returns playlist IDs, categories, category order, and contact email, never the API key or password hash.
+- `server/private/` は**公開ディレクトリの外**に配置しなければならない — `server/public/bootstrap.php` は `PRIVATE_DIR` を `dirname(__DIR__) . '/private'`(`server/public/` の配置先と同じ階層)として解決する。`private/` 内の `.htaccess` はApacheしか保護しない。実際の本番環境はnginxであり、本当の防御はサーバーのnginx設定にある `location ^~ /private/ { deny all; }` ブロック(このリポジトリには含まれない)。
+- `Config.php` はサイト設定(APIキー、再生リストIDと並び順、カスタムタイトル、カテゴリーとカテゴリー並び順、連絡先メールアドレス、管理者パスワードのハッシュ)の唯一の正となる場所であり、`server/private/config.json` へ原子的に永続化する(一時ファイルに書き込み、`chmod 0600`、その後 `rename()`)。
+- `Security.php` はCSRFトークン、ファイルベースのログインロックアウト(IPごとに15分で5回失敗)、汎用的なスライディングウィンドウ型レート制限を提供する。両方とも、同時リクエスト下での既知の(許容済みの)TOCTOU競合状態がある(読み取り→変更→書き込みのサイクルが全体を通してロックされていない) — bcryptの計算コストのおかげで深刻度は低いが、これ以上厳格な用途で頼る前には把握しておく価値がある。
+- `YouTubeClient.php` は、実際のAPIキーをGoogleへ送信する唯一のコード。全てのレスポンスを `server/private/cache/youtube/` 配下にキャッシュし(TTL: 再生リスト1時間、動画一覧10分、動画詳細30分)、実際にアップストリームへ到達する呼び出しのみをレート制限する — キャッシュヒットは常に無料。そうしないと、再生リスト・カテゴリーが多いページでは、キャッシュが冷えている状態で正当な理由でも1分あたりの妥当な上限を超えてバーストしうるため。また `server/private/cache/known_video_ids.json`(承認済み再生リストの中で実際に見つかった動画IDの許可リスト)を保持しており、`api/youtube.php` の `videos` リソースがこれをチェックすることで、任意の動画IDを調べられる野良のYouTubeメタデータ参照プロキシになってしまうことを防いでいる。
+- `server/public/api/youtube.php` は公開プロキシ: `YouTubeClient::request()` を呼ぶ前に、`resource`/`playlistId`/`id` を管理者が設定した再生リスト(および動画IDの許可リスト)に照らして検証する。また、`playlist` リソースのタイトルを管理者のカスタム上書きで書き換えてから返すため、フロントエンド側は上書きが起きたことを一切知る必要がない。
+- `server/public/admin/index.php` は単一の自己完結した手続き型スクリプト(初期設定/ログイン/ダッシュボードを `$setupComplete`/`$loggedIn` で分岐)— 全ての状態変更操作はPOST + CSRFチェック必須で、クリックジャッキング対策として `X-Frame-Options: DENY` / `frame-ancestors 'none'` を送信する。再生リスト・カテゴリーのドラッグ並び替えは `form.submit()` ではなく `fetch()` でバックグラウンドPOSTする。これはページ再読み込みでスクロール位置が先頭に戻ってしまうのを防ぐため。
+- `server/public/api/config.php` は唯一の認証不要な読み取りエンドポイント — 再生リストID・カテゴリー・カテゴリー並び順・連絡先メールアドレスを返すが、APIキーやパスワードのハッシュは決して返さない。
 
-### Deployment model
+### デプロイ環境
 
-Production runs on a single nginx + PHP-FPM VPS (not classic shared Apache hosting, despite `server/README.md`'s Apache-oriented `.htaccess` note — that file is dead weight there). `dist/` and `server/public/`'s contents are deployed into the same nginx document root; `server/private/` goes one level above it. `index.html` and other `.html` files must be served with `Cache-Control: no-cache` and `/assets/` with a long immutable cache — this was the root cause of a real production incident (stale cached HTML on iOS Safari referencing old, un-deleted hashed bundles). Always replace `assets/` wholesale on deploy rather than adding to it.
+本番環境は単一のnginx + PHP-FPMのVPS上で動作している(`server/README.md` にApache向けの `.htaccess` の記述があるが、古典的な共用Apacheホスティングではなく、そのファイルはここでは死んだ設定である)。`dist/` と `server/public/` の中身は同じnginxのドキュメントルートにデプロイし、`server/private/` はその1つ上の階層に置く。`index.html` など `.html` ファイルは `Cache-Control: no-cache` で、`/assets/` は長期の不変キャッシュで配信しなければならない — これは実際に起きた本番障害(iOS Safariが、削除されず残っていた古いハッシュ付きビルドを参照する古いキャッシュ済みHTMLを使い続けた)の根本原因だった。デプロイ時は `assets/` を追加するのではなく、必ず丸ごと置き換えること。
