@@ -16,6 +16,12 @@ session_set_cookie_params([
 ]);
 session_start();
 
+// Clickjacking protection: without this, a malicious site could iframe this
+// page and trick a logged-in admin into clicking a real (and therefore
+// CSRF-token-valid) delete/change-password button without realizing it.
+header('X-Frame-Options: DENY');
+header("Content-Security-Policy: frame-ancestors 'none'");
+
 require __DIR__ . '/../bootstrap.php';
 
 $ip = Security::clientIp();

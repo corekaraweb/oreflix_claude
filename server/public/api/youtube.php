@@ -50,6 +50,9 @@ switch ($resource) {
             if (!preg_match('/^[A-Za-z0-9_-]{1,32}$/', $id)) {
                 respond(400, ['error' => ['message' => '不正な動画IDです。']]);
             }
+            if (!YouTubeClient::isKnownVideoId($id)) {
+                respond(403, ['error' => ['message' => '許可されていない動画です。']]);
+            }
         }
         $identifyingParams = ['id' => implode(',', $ids)];
         break;

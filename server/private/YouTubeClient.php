@@ -94,9 +94,66 @@ final class YouTubeClient
                 json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 LOCK_EX,
             );
+
+            // Remember which video IDs actually belong to an approved
+            // playlist, so the "videos" resource (which has no playlist
+            // param to check against an allowlist) can reject arbitrary
+            // IDs instead of acting as an open YouTube metadata proxy.
+            if ($resource === 'playlistItems') {
+                $ids = [];
+                foreach ($decoded['items'] ?? [] as $item) {
+                    $id = $item['contentDetails']['videoId'] ?? ($item['snippet']['resourceId']['videoId'] ?? null);
+                    if (is_string($id) && $id !== '') {
+                        $ids[] = $id;
+                    }
+                }
+                self::rememberVideoIds($ids);
+            }
         }
 
         return ['status' => $status, 'body' => $decoded];
+    }
+
+    private static function knownVideoIdsPath(): string
+    {
+        return __DIR__ . '/cache/known_video_ids.json';
+    }
+
+    private static function rememberVideoIds(array $ids): void
+    {
+        if (empty($ids)) {
+            return;
+        }
+        $path = self::knownVideoIdsPath();
+        $known = [];
+        if (is_file($path)) {
+            $decoded = json_decode((string) file_get_contents($path), true);
+            if (is_array($decoded)) {
+                $known = $decoded;
+            }
+        }
+        foreach ($ids as $id) {
+            $known[$id] = true;
+        }
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0700, true);
+        }
+        $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        file_put_contents($tmp, json_encode($known), LOCK_EX);
+        chmod($tmp, 0600);
+        rename($tmp, $path);
+    }
+
+    /** Whether $id was seen in an approved playlist's items at some point. */
+    public static function isKnownVideoId(string $id): bool
+    {
+        $path = self::knownVideoIdsPath();
+        if (!is_file($path)) {
+            return false;
+        }
+        $decoded = json_decode((string) file_get_contents($path), true);
+        return is_array($decoded) && isset($decoded[$id]);
     }
 
     /** Deletes all cached YouTube API responses. Returns the number of files removed. */
